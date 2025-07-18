@@ -11,14 +11,17 @@ require('dotenv').config();
 const app = express();
 const server = createServer(app);
 
-// Configure allowed origins for development
+// Configure allowed origins for development and production
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174', 
   'http://localhost:5175',
   'http://localhost:5176',
   'http://localhost:5177',
-  process.env.FRONTEND_URL
+  process.env.FRONTEND_URL,
+  // Add your Vercel domain here
+  'https://iwanyu-complete.vercel.app',
+  'https://*.vercel.app'
 ].filter(Boolean);
 
 const io = new Server(server, {
@@ -63,9 +66,18 @@ app.use('/api/categories', require('./routes/categories'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/payments', require('./routes/payments'));
 
-// Health check
+// Health check endpoints
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'Iwanyu API',
+    version: '1.0.0'
+  });
 });
 
 // Socket.IO for real-time chat
