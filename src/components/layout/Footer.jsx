@@ -89,7 +89,7 @@ const Footer = () => {
             {/* Company Info */}
             <motion.div variants={itemVariants}>
               <div className="mb-6">
-                <IwanyuLogo className="w-12 h-12" textClassName="text-3xl" />
+                <IwanyuLogo className="w-auto h-12" showText={false} />
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
                 Rwanda's premier marketplace where innovation meets elegance. 

@@ -60,7 +60,7 @@ const Navbar = () => {
               whileTap={{ scale: 0.95 }}
             >
               <Link to="/" className="flex items-center">
-                <IwanyuLogo className="w-10 h-10" textClassName="text-xl" />
+                <IwanyuLogo className="w-auto h-10" showText={false} />
               </Link>
             </motion.div>
 
