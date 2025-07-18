@@ -70,13 +70,17 @@ PORT=10000
 - **Output Directory**: `dist`
 
 ### Step 3: Environment Variables
-Add these environment variables in Vercel:
+Add these environment variables in Vercel Dashboard (Settings → Environment Variables):
 
-```
+**Important**: Add these in the Vercel dashboard, not in vercel.json
+
+```bash
 VITE_API_URL=https://your-render-backend-url.onrender.com
 VITE_APP_NAME=Iwanyu
 VITE_FLUTTERWAVE_PUBLIC_KEY=your_flutterwave_public_key
 ```
+
+**Note**: Make sure to set these for all environments (Production, Preview, Development) in Vercel.
 
 ### Step 4: Deploy
 1. Click "Deploy"

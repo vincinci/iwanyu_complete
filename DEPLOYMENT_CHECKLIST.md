@@ -59,11 +59,17 @@ PORT=10000
 - [ ] Environment variables added
 
 ### Environment Variables (Vercel)
-```
+
+**Important**: Add these in Vercel Dashboard → Settings → Environment Variables
+**Do NOT** use the "Add from .env" button during deployment setup.
+
+```bash
 VITE_API_URL=https://your-render-backend.onrender.com
 VITE_APP_NAME=Iwanyu
 VITE_FLUTTERWAVE_PUBLIC_KEY=your_public_key
 ```
+
+**Set for all environments**: Production, Preview, Development
 
 ## Post-Deployment
 
