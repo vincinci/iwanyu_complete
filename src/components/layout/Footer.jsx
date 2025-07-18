@@ -13,6 +13,7 @@ import {
   Truck,
   ArrowRight
 } from 'lucide-react';
+import IwanyuLogo from '../common/IwanyuLogo';
 
 const Footer = () => {
   const containerVariants = {
@@ -87,11 +88,8 @@ const Footer = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
             {/* Company Info */}
             <motion.div variants={itemVariants}>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center">
-                  <span className="text-2xl font-bold text-white">I</span>
-                </div>
-                <span className="text-3xl font-semibold text-gray-900">wanyu</span>
+              <div className="mb-6">
+                <IwanyuLogo className="w-12 h-12" textClassName="text-3xl" />
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
                 Rwanda's premier marketplace where innovation meets elegance. 

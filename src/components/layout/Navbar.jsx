@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
+import IwanyuLogo from '../common/IwanyuLogo';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -58,11 +59,8 @@ const Navbar = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Link to="/" className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
-                  <span className="text-xl font-bold text-white">I</span>
-                </div>
-                <span className="text-xl font-semibold text-gray-900">Iwanyu</span>
+              <Link to="/" className="flex items-center">
+                <IwanyuLogo className="w-10 h-10" textClassName="text-xl" />
               </Link>
             </motion.div>
 
