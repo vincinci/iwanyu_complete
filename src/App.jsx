@@ -1,14 +1,14 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { ApiProvider } from './contexts/ApiContext';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import Home from './pages/Home';
 import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import Login from './pages/auth/Login';
@@ -16,18 +16,20 @@ import Register from './pages/auth/Register';
 import Profile from './pages/user/Profile';
 import Orders from './pages/user/Orders';
 import Wishlist from './pages/user/Wishlist';
-import VendorDashboard from './pages/vendor/Dashboard';
-import AdminDashboard from './pages/admin/Dashboard';
 import Chat from './components/chat/Chat';
 import LoadingSpinner from './components/ui/LoadingSpinner';
-import DebugRegistration from './components/DebugRegistration';
-import DebugAdmin from './components/DebugAdmin';
 import { useAuth } from './contexts/AuthContext';
+
+// Lazy load heavy components to improve performance
+const ProductDetail = React.lazy(() => import('./pages/ProductDetail'));
+const VendorDashboard = React.lazy(() => import('./pages/vendor/Dashboard'));
+const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'));
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
+    <ApiProvider>
+      <AuthProvider>
+        <CartProvider>
         <ChatProvider>
           <Router>
             <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -37,12 +39,14 @@ function App() {
                   {/* Public Routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/products" element={<Products />} />
-                  <Route path="/products/:slug" element={<ProductDetail />} />
+                  <Route path="/products/:slug" element={
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <ProductDetail />
+                    </Suspense>
+                  } />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
-                  <Route path="/debug" element={<DebugRegistration />} />
-                  <Route path="/debug-admin" element={<DebugAdmin />} />
                   
                   {/* Protected Routes */}
                   <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
@@ -51,10 +55,22 @@ function App() {
                   <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
                   
                   {/* Vendor Routes */}
-                  <Route path="/vendor/*" element={<VendorRoute><VendorDashboard /></VendorRoute>} />
+                  <Route path="/vendor/*" element={
+                    <VendorRoute>
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <VendorDashboard />
+                      </Suspense>
+                    </VendorRoute>
+                  } />
                   
                   {/* Admin Routes */}
-                  <Route path="/admin/*" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+                  <Route path="/admin/*" element={
+                    <AdminRoute>
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <AdminDashboard />
+                      </Suspense>
+                    </AdminRoute>
+                  } />
                 </Routes>
               </main>
               <Footer />
@@ -90,6 +106,7 @@ function App() {
         </ChatProvider>
       </CartProvider>
     </AuthProvider>
+    </ApiProvider>
   );
 }
 

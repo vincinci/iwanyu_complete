@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Eye, CheckCircle, XCircle, Clock, Download, Store, FileText } from 'lucide-react';
+import { Search, Filter, Eye, CheckCircle, XCircle, Clock, Download, Store, FileText, AlertTriangle } from 'lucide-react';
+import { adminAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const AdminVendors = () => {
   const [vendors, setVendors] = useState([]);
@@ -7,91 +9,66 @@ const AdminVendors = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [showVendorModal, setShowVendorModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalCount: 0
+  });
+
+  const fetchVendors = async (page = 1, status = '') => {
+    try {
+      setLoading(true);
+      const params = { page, limit: 10 };
+      if (status && status !== 'all') {
+        params.status = status.toUpperCase();
+      }
+      
+      const response = await adminAPI.getVendors(params);
+      
+      // Transform API data to match frontend expectations
+      const transformedVendors = response.data.vendors.map(vendor => ({
+        id: vendor.id,
+        businessName: vendor.businessName,
+        ownerName: `${vendor.user.firstName} ${vendor.user.lastName}`,
+        email: vendor.user.email,
+        phone: vendor.businessPhone,
+        businessAddress: vendor.businessAddress,
+        status: vendor.status.toLowerCase(),
+        submissionDate: new Date(vendor.createdAt).toISOString().split('T')[0],
+        approvalDate: vendor.updatedAt !== vendor.createdAt ? new Date(vendor.updatedAt).toISOString().split('T')[0] : null,
+        documents: {
+          businessLicense: vendor.licenseDocument,
+          idDocument: vendor.kycDocument,
+          taxDocument: vendor.taxDocument
+        },
+        products: 0, // Will be updated with actual count
+        orders: 0,   // Will be updated with actual count
+        revenue: 0,  // Will be updated with actual revenue
+        rating: 0,   // Will be updated with actual rating
+        description: vendor.description,
+        taxId: vendor.taxId
+      }));
+      
+      setVendors(transformedVendors);
+      setPagination({
+        currentPage: response.data.currentPage,
+        totalPages: response.data.totalPages,
+        totalCount: response.data.totalCount
+      });
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      toast.error('Failed to load vendors');
+      // Fallback to empty array
+      setVendors([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Mock data - replace with real API calls
-    setVendors([
-      {
-        id: 1,
-        businessName: 'Tech Store Rwanda',
-        ownerName: 'Jane Smith',
-        email: 'jane@techstore.rw',
-        phone: '+250788654321',
-        businessAddress: 'KG 123 St, Kigali',
-        status: 'active',
-        submissionDate: '2024-01-10',
-        approvalDate: '2024-01-12',
-        documents: {
-          businessLicense: 'business_license.pdf',
-          idDocument: 'id_document.pdf'
-        },
-        products: 45,
-        orders: 128,
-        revenue: 2450000,
-        rating: 4.8
-      },
-      {
-        id: 2,
-        businessName: 'Fashion Forward RW',
-        ownerName: 'Alice Brown',
-        email: 'alice@fashion.rw',
-        phone: '+250788456789',
-        businessAddress: 'KG 456 St, Kigali',
-        status: 'pending',
-        submissionDate: '2024-01-18',
-        approvalDate: null,
-        documents: {
-          businessLicense: 'business_license_2.pdf',
-          idDocument: 'id_document_2.pdf'
-        },
-        products: 0,
-        orders: 0,
-        revenue: 0,
-        rating: 0
-      },
-      {
-        id: 3,
-        businessName: 'Home & Garden Plus',
-        ownerName: 'Robert Johnson',
-        email: 'robert@homeandgarden.rw',
-        phone: '+250788789123',
-        businessAddress: 'KG 789 St, Kigali',
-        status: 'suspended',
-        submissionDate: '2024-01-05',
-        approvalDate: '2024-01-07',
-        suspensionDate: '2024-01-15',
-        suspensionReason: 'Multiple customer complaints',
-        documents: {
-          businessLicense: 'business_license_3.pdf',
-          idDocument: 'id_document_3.pdf'
-        },
-        products: 23,
-        orders: 45,
-        revenue: 875000,
-        rating: 3.2
-      },
-      {
-        id: 4,
-        businessName: 'Electronics Hub',
-        ownerName: 'Maria Garcia',
-        email: 'maria@electronicshub.rw',
-        phone: '+250788321654',
-        businessAddress: 'KG 321 St, Kigali',
-        status: 'rejected',
-        submissionDate: '2024-01-16',
-        rejectionDate: '2024-01-17',
-        rejectionReason: 'Incomplete documentation',
-        documents: {
-          businessLicense: 'business_license_4.pdf',
-          idDocument: null
-        },
-        products: 0,
-        orders: 0,
-        revenue: 0,
-        rating: 0
-      }
-    ]);
-  }, []);
+    fetchVendors(1, filterStatus);
+  }, [filterStatus]);
 
   const filteredVendors = vendors.filter(vendor => {
     const matchesSearch = vendor.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,35 +78,70 @@ const AdminVendors = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleVendorAction = (vendorId, action, reason = '') => {
-    setVendors(vendors.map(vendor => {
-      if (vendor.id === vendorId) {
-        const today = new Date().toISOString().split('T')[0];
-        switch (action) {
-          case 'approve':
-            return { ...vendor, status: 'active', approvalDate: today };
-          case 'reject':
-            return { ...vendor, status: 'rejected', rejectionDate: today, rejectionReason: reason };
-          case 'suspend':
-            return { ...vendor, status: 'suspended', suspensionDate: today, suspensionReason: reason };
-          case 'reactivate':
-            return { ...vendor, status: 'active', suspensionDate: null, suspensionReason: null };
-          default:
-            return vendor;
-        }
+  const handleVendorAction = async (vendorId, action, reason = '') => {
+    try {
+      let response;
+      
+      switch (action) {
+        case 'approve':
+          response = await adminAPI.updateVendor(vendorId, { 
+            status: 'APPROVED' 
+          });
+          toast.success('Vendor approved successfully');
+          break;
+          
+        case 'reject':
+          if (!reason) {
+            reason = prompt('Please provide a reason for rejection:');
+            if (!reason) return;
+          }
+          response = await adminAPI.updateVendor(vendorId, { 
+            status: 'REJECTED',
+            rejectionReason: reason 
+          });
+          toast.success('Vendor rejected');
+          break;
+          
+        case 'suspend':
+          if (!reason) {
+            reason = prompt('Please provide a reason for suspension:');
+            if (!reason) return;
+          }
+          response = await adminAPI.updateVendor(vendorId, { 
+            status: 'SUSPENDED',
+            suspensionReason: reason 
+          });
+          toast.success('Vendor suspended');
+          break;
+          
+        case 'reactivate':
+          response = await adminAPI.updateVendor(vendorId, { 
+            status: 'APPROVED' 
+          });
+          toast.success('Vendor reactivated');
+          break;
+          
+        default:
+          return;
       }
-      return vendor;
-    }));
+      
+      // Refresh the vendors list
+      await fetchVendors(pagination.currentPage, filterStatus);
+      
+    } catch (error) {
+      console.error('Error updating vendor status:', error);
+      toast.error('Failed to update vendor status');
+    }
   };
 
-  const VendorModal = ({ vendor, onClose }) => (
+  const VendorModal = ({ vendor, onClose, onVendorAction }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-gray-900">Vendor Details</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 text-2xl"
           >
             ×
           </button>
@@ -160,12 +172,32 @@ const AdminVendors = () => {
                 <label className="text-sm text-gray-600">Business Address</label>
                 <p className="font-medium">{vendor.businessAddress}</p>
               </div>
+              {vendor.description && (
+                <div>
+                  <label className="text-sm text-gray-600">Description</label>
+                  <p className="font-medium">{vendor.description}</p>
+                </div>
+              )}
+              {vendor.taxId && (
+                <div>
+                  <label className="text-sm text-gray-600">Tax ID</label>
+                  <p className="font-medium">{vendor.taxId}</p>
+                </div>
+              )}
               <div>
                 <label className="text-sm text-gray-600">Status</label>
                 <span className={`inline-block px-3 py-1 text-sm rounded-full ${
-                  vendor.status === 'active' ? 'bg-green-100 text-green-800' :
+                  vendor.status === 'approved' || vendor.status === 'active' ? 'bg-green-100 text-green-800' :
                   vendor.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                   vendor.status === 'suspended' ? 'bg-red-100 text-red-800' :
+                  vendor.status === 'rejected' ? 'bg-gray-100 text-gray-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {vendor.status}
+                </span>
+              </div>
+            </div>
+          </div>
                   'bg-gray-100 text-gray-800'
                 }`}>
                   {vendor.status}
@@ -237,16 +269,22 @@ const AdminVendors = () => {
         {/* Documents */}
         <div className="mt-8">
           <h4 className="font-semibold text-gray-900 mb-4">Documents</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center space-x-3">
                 <FileText className="w-8 h-8 text-blue-500" />
                 <div>
                   <p className="font-medium">Business License</p>
                   {vendor.documents.businessLicense ? (
-                    <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1">
+                    <button 
+                      onClick={() => {
+                        // Handle document download/view
+                        window.open(`/api/vendors/documents/${vendor.documents.businessLicense}`, '_blank');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
                       <Download className="w-4 h-4" />
-                      <span>Download</span>
+                      <span>View/Download</span>
                     </button>
                   ) : (
                     <p className="text-sm text-red-600">Not provided</p>
@@ -260,9 +298,15 @@ const AdminVendors = () => {
                 <div>
                   <p className="font-medium">ID Document</p>
                   {vendor.documents.idDocument ? (
-                    <button className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1">
+                    <button 
+                      onClick={() => {
+                        // Handle document download/view
+                        window.open(`/api/vendors/documents/${vendor.documents.idDocument}`, '_blank');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
                       <Download className="w-4 h-4" />
-                      <span>Download</span>
+                      <span>View/Download</span>
                     </button>
                   ) : (
                     <p className="text-sm text-red-600">Not provided</p>
@@ -270,7 +314,39 @@ const AdminVendors = () => {
                 </div>
               </div>
             </div>
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-8 h-8 text-purple-500" />
+                <div>
+                  <p className="font-medium">Tax Document</p>
+                  {vendor.documents.taxDocument ? (
+                    <button 
+                      onClick={() => {
+                        // Handle document download/view
+                        window.open(`/api/vendors/documents/${vendor.documents.taxDocument}`, '_blank');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>View/Download</span>
+                    </button>
+                  ) : (
+                    <p className="text-sm text-orange-600">Optional</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
+          {(!vendor.documents.idDocument || !vendor.documents.businessLicense) && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <p className="text-sm text-red-700 font-medium">
+                  Missing required documents. ID Document and Business License are required for approval.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -278,8 +354,8 @@ const AdminVendors = () => {
           {vendor.status === 'pending' && (
             <>
               <button
-                onClick={() => {
-                  handleVendorAction(vendor.id, 'approve');
+                onClick={async () => {
+                  await onVendorAction(vendor.id, 'approve');
                   onClose();
                 }}
                 className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
@@ -288,10 +364,10 @@ const AdminVendors = () => {
                 <span>Approve</span>
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const reason = prompt('Reason for rejection:');
                   if (reason) {
-                    handleVendorAction(vendor.id, 'reject', reason);
+                    await onVendorAction(vendor.id, 'reject', reason);
                     onClose();
                   }
                 }}
@@ -302,40 +378,43 @@ const AdminVendors = () => {
               </button>
             </>
           )}
-          {vendor.status === 'active' && (
+          {(vendor.status === 'approved' || vendor.status === 'active') && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 const reason = prompt('Reason for suspension:');
                 if (reason) {
-                  handleVendorAction(vendor.id, 'suspend', reason);
+                  await onVendorAction(vendor.id, 'suspend', reason);
                   onClose();
                 }
               }}
-              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700"
+              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 flex items-center justify-center space-x-2"
             >
-              Suspend
+              <XCircle className="w-4 h-4" />
+              <span>Suspend</span>
             </button>
           )}
           {vendor.status === 'suspended' && (
             <button
-              onClick={() => {
-                handleVendorAction(vendor.id, 'reactivate');
+              onClick={async () => {
+                await onVendorAction(vendor.id, 'reactivate');
                 onClose();
               }}
-              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
+              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
             >
-              Reactivate
+              <CheckCircle className="w-4 h-4" />
+              <span>Reactivate</span>
             </button>
           )}
           <button
             onClick={onClose}
-            className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
           >
             Close
           </button>
         </div>
       </div>
     </div>
+  );
   );
 
   return (
@@ -452,7 +531,7 @@ const AdminVendors = () => {
                     Submission
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Performance
+                    Documents
                   </th>
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -460,53 +539,191 @@ const AdminVendors = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{vendor.businessName}</div>
-                        <div className="text-sm text-gray-500">{vendor.businessAddress}</div>
+                {loading ? (
+                  // Loading skeleton
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="animate-pulse">
+                          <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="animate-pulse flex justify-end space-x-2">
+                          <div className="h-8 bg-gray-200 rounded w-8"></div>
+                          <div className="h-8 bg-gray-200 rounded w-16"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredVendors.length === 0 ? (
+                  // No data state
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <Store className="w-12 h-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No vendors found</h3>
+                        <p className="text-gray-500">
+                          {searchTerm || filterStatus !== 'all'
+                            ? 'Try adjusting your search or filter criteria.'
+                            : 'No vendor applications have been submitted yet.'}
+                        </p>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{vendor.ownerName}</div>
-                        <div className="text-sm text-gray-500">{vendor.email}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        vendor.status === 'active' ? 'bg-green-100 text-green-800' :
-                        vendor.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        vendor.status === 'suspended' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {vendor.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {vendor.submissionDate}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {vendor.products} products, {vendor.orders} orders
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => {
-                          setSelectedVendor(vendor);
-                          setShowVendorModal(true);
-                        }}
-                        className="text-orange-600 hover:text-orange-900"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredVendors.map((vendor) => (
+                    <tr key={vendor.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{vendor.businessName}</div>
+                          <div className="text-sm text-gray-500 truncate max-w-xs">{vendor.businessAddress}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{vendor.ownerName}</div>
+                          <div className="text-sm text-gray-500">{vendor.email}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          vendor.status === 'approved' || vendor.status === 'active' ? 'bg-green-100 text-green-800' :
+                          vendor.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          vendor.status === 'suspended' ? 'bg-red-100 text-red-800' :
+                          vendor.status === 'rejected' ? 'bg-gray-100 text-gray-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {vendor.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {vendor.submissionDate}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          {vendor.documents.idDocument && (
+                            <div className="w-2 h-2 bg-green-500 rounded-full" title="ID Document"></div>
+                          )}
+                          {vendor.documents.businessLicense && (
+                            <div className="w-2 h-2 bg-blue-500 rounded-full" title="Business License"></div>
+                          )}
+                          {vendor.documents.taxDocument && (
+                            <div className="w-2 h-2 bg-purple-500 rounded-full" title="Tax Document"></div>
+                          )}
+                          {!vendor.documents.idDocument && !vendor.documents.businessLicense && !vendor.documents.taxDocument && (
+                            <AlertTriangle className="w-4 h-4 text-red-500" title="Missing documents" />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => {
+                              setSelectedVendor(vendor);
+                              setShowVendorModal(true);
+                            }}
+                            className="text-orange-600 hover:text-orange-900"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {vendor.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleVendorAction(vendor.id, 'approve')}
+                                className="text-green-600 hover:text-green-900"
+                                title="Approve"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleVendorAction(vendor.id, 'reject')}
+                                className="text-red-600 hover:text-red-900"
+                                title="Reject"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {vendor.status === 'approved' && (
+                            <button
+                              onClick={() => handleVendorAction(vendor.id, 'suspend')}
+                              className="text-red-600 hover:text-red-900"
+                              title="Suspend"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                          {vendor.status === 'suspended' && (
+                            <button
+                              onClick={() => handleVendorAction(vendor.id, 'reactivate')}
+                              className="text-green-600 hover:text-green-900"
+                              title="Reactivate"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* Pagination */}
+        {!loading && pagination.totalPages > 1 && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mt-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {((pagination.currentPage - 1) * 10) + 1} to {Math.min(pagination.currentPage * 10, pagination.totalCount)} of {pagination.totalCount} vendors
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => fetchVendors(pagination.currentPage - 1, filterStatus)}
+                  disabled={pagination.currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="px-3 py-2 text-sm font-medium text-gray-700">
+                  Page {pagination.currentPage} of {pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => fetchVendors(pagination.currentPage + 1, filterStatus)}
+                  disabled={pagination.currentPage === pagination.totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Vendor Modal */}
         {showVendorModal && selectedVendor && (
@@ -516,6 +733,7 @@ const AdminVendors = () => {
               setShowVendorModal(false);
               setSelectedVendor(null);
             }}
+            onVendorAction={handleVendorAction}
           />
         )}
       </div>

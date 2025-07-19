@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Eye, Ban, CheckCircle, AlertTriangle, Package, Star, DollarSign } from 'lucide-react';
+import { adminAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
@@ -8,83 +10,68 @@ const AdminProducts = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    // Mock data - replace with real API calls
-    setProducts([
-      {
-        id: 1,
-        name: 'iPhone 15 Pro Max',
-        vendor: 'Tech Store Rwanda',
-        vendorId: 1,
-        category: 'Electronics',
-        price: 1250000,
-        stock: 15,
-        status: 'active',
-        flagged: false,
-        images: ['iphone1.jpg', 'iphone2.jpg'],
-        description: 'Latest iPhone with advanced features',
-        rating: 4.8,
-        reviews: 24,
-        createdAt: '2024-01-15',
-        lastModified: '2024-01-18'
-      },
-      {
-        id: 2,
-        name: 'Designer Handbag',
-        vendor: 'Fashion Forward RW',
-        vendorId: 2,
-        category: 'Fashion',
-        price: 85000,
-        stock: 8,
-        status: 'pending',
-        flagged: false,
-        images: ['bag1.jpg'],
-        description: 'Elegant designer handbag for all occasions',
-        rating: 0,
-        reviews: 0,
-        createdAt: '2024-01-19',
-        lastModified: '2024-01-19'
-      },
-      {
-        id: 3,
-        name: 'Gaming Laptop',
-        vendor: 'Tech Store Rwanda',
-        vendorId: 1,
-        category: 'Electronics',
-        price: 980000,
-        stock: 5,
-        status: 'active',
-        flagged: true,
-        flagReason: 'Price seems unusually low for this specification',
-        images: ['laptop1.jpg', 'laptop2.jpg', 'laptop3.jpg'],
-        description: 'High-performance gaming laptop',
-        rating: 4.5,
-        reviews: 12,
-        createdAt: '2024-01-12',
-        lastModified: '2024-01-16'
-      },
-      {
-        id: 4,
-        name: 'Garden Tools Set',
-        vendor: 'Home & Garden Plus',
-        vendorId: 3,
-        category: 'Home & Garden',
-        price: 45000,
-        stock: 0,
-        status: 'suspended',
-        flagged: false,
-        suspensionReason: 'Vendor account suspended',
-        images: ['tools1.jpg'],
-        description: 'Complete set of garden tools',
-        rating: 3.2,
-        reviews: 8,
-        createdAt: '2024-01-08',
-        lastModified: '2024-01-15'
-      }
-    ]);
-  }, []);
+    fetchProducts();
+  }, [currentPage, searchTerm, filterCategory]);
 
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        page: currentPage,
+        limit: 10,
+        search: searchTerm,
+        category: filterCategory !== 'all' ? filterCategory : undefined
+      };
+
+      const response = await adminAPI.getProducts(params);
+      const transformedProducts = response.data.products.map(product => ({
+        id: product.id,
+        name: product.name,
+        vendor: product.vendor?.businessName || 'Unknown Vendor',
+        vendorId: product.vendorId,
+        category: product.category?.name || 'Uncategorized',
+        price: product.price,
+        stock: product.stock || 0,
+        status: product.isActive ? 'active' : 'inactive',
+        flagged: false, // This would need to be added to the API
+        images: product.images?.map(img => img.url) || [],
+        description: product.description,
+        rating: 0, // This would need to be calculated
+        reviews: 0, // This would need to be calculated
+        createdAt: new Date(product.createdAt).toLocaleDateString(),
+        lastModified: new Date(product.updatedAt).toLocaleDateString()
+      }));
+
+      setProducts(transformedProducts);
+      setTotalPages(response.data.totalPages);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      toast.error('Failed to load products');
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProductAction = async (productId, action) => {
+    try {
+      if (action === 'toggle-status') {
+        await adminAPI.updateProduct(productId, {});
+        toast.success('Product status updated successfully');
+        fetchProducts();
+      } else if (action === 'view') {
+        const product = products.find(p => p.id === productId);
+        setSelectedProduct(product);
+        setShowProductModal(true);
+      }
+    } catch (error) {
+      console.error('Error updating product:', error);
+      toast.error('Failed to update product');
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.vendor.toLowerCase().includes(searchTerm.toLowerCase());
@@ -93,27 +80,22 @@ const AdminProducts = () => {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const handleProductAction = (productId, action, reason = '') => {
-    setProducts(products.map(product => {
-      if (product.id === productId) {
-        switch (action) {
-          case 'approve':
-            return { ...product, status: 'active' };
-          case 'suspend':
-            return { ...product, status: 'suspended', suspensionReason: reason };
-          case 'flag':
-            return { ...product, flagged: true, flagReason: reason };
-          case 'unflag':
-            return { ...product, flagged: false, flagReason: null };
-          case 'reactivate':
-            return { ...product, status: 'active', suspensionReason: null };
-          default:
-            return product;
-        }
-      }
-      return product;
-    }));
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-20 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const ProductModal = ({ product, onClose }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -261,7 +243,8 @@ const AdminProducts = () => {
               onClick={() => {
                 const reason = prompt('Reason for flagging:');
                 if (reason) {
-                  handleProductAction(product.id, 'flag', reason);
+                  // Note: Flag functionality would need to be implemented in the API
+                  toast.info('Flag functionality will be implemented');
                   onClose();
                 }
               }}
@@ -274,7 +257,8 @@ const AdminProducts = () => {
           {product.flagged && (
             <button
               onClick={() => {
-                handleProductAction(product.id, 'unflag');
+                // Note: Unflag functionality would need to be implemented in the API
+                toast.info('Unflag functionality will be implemented');
                 onClose();
               }}
               className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
@@ -285,27 +269,24 @@ const AdminProducts = () => {
           {product.status === 'active' && (
             <button
               onClick={() => {
-                const reason = prompt('Reason for suspension:');
-                if (reason) {
-                  handleProductAction(product.id, 'suspend', reason);
-                  onClose();
-                }
+                handleProductAction(product.id, 'toggle-status');
+                onClose();
               }}
               className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 flex items-center justify-center space-x-2"
             >
               <Ban className="w-4 h-4" />
-              <span>Suspend</span>
+              <span>Deactivate</span>
             </button>
           )}
-          {product.status === 'suspended' && (
+          {product.status === 'inactive' && (
             <button
               onClick={() => {
-                handleProductAction(product.id, 'reactivate');
+                handleProductAction(product.id, 'toggle-status');
                 onClose();
               }}
               className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
             >
-              Reactivate
+              Activate
             </button>
           )}
           <button

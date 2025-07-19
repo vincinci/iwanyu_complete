@@ -14,6 +14,8 @@ import {
   Calendar
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { vendorAPI, orderAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const VendorOrders = () => {
   const navigate = useNavigate();
@@ -21,115 +23,95 @@ const VendorOrders = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    totalRevenue: 0
+  });
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
-    const mockOrders = [
-      {
-        id: 'ORD-001',
-        customer: 'John Mukamana',
-        email: 'john@example.com',
-        phone: '+250781234567',
-        products: [
-          { name: 'Premium Coffee Beans', quantity: 2, price: 15000 },
-          { name: 'Handwoven Basket', quantity: 1, price: 8500 }
-        ],
-        total: 38500,
-        status: 'pending',
-        paymentStatus: 'paid',
-        shippingAddress: 'KG 123 St, Kigali, Rwanda',
-        orderDate: '2024-01-20T10:30:00Z',
-        notes: 'Please handle with care'
-      },
-      {
-        id: 'ORD-002',
-        customer: 'Marie Uwimana',
-        email: 'marie@example.com',
-        phone: '+250782345678',
-        products: [
-          { name: 'Traditional Fabric', quantity: 1, price: 25000 }
-        ],
-        total: 25000,
-        status: 'processing',
-        paymentStatus: 'paid',
-        shippingAddress: 'KN 456 Ave, Kigali, Rwanda',
-        orderDate: '2024-01-19T15:45:00Z',
-        notes: ''
-      },
-      {
-        id: 'ORD-003',
-        customer: 'David Nkurunziza',
-        email: 'david@example.com',
-        phone: '+250783456789',
-        products: [
-          { name: 'Handwoven Basket', quantity: 3, price: 8500 }
-        ],
-        total: 25500,
-        status: 'shipped',
-        paymentStatus: 'paid',
-        shippingAddress: 'KK 789 Rd, Kigali, Rwanda',
-        orderDate: '2024-01-18T09:15:00Z',
-        trackingNumber: 'TRK123456789',
-        notes: 'Express delivery requested'
-      },
-      {
-        id: 'ORD-004',
-        customer: 'Sarah Umutesi',
-        email: 'sarah@example.com',
-        phone: '+250784567890',
-        products: [
-          { name: 'Premium Coffee Beans', quantity: 1, price: 15000 }
-        ],
-        total: 15000,
-        status: 'delivered',
-        paymentStatus: 'paid',
-        shippingAddress: 'KG 321 St, Kigali, Rwanda',
-        orderDate: '2024-01-15T14:20:00Z',
-        deliveryDate: '2024-01-17T11:30:00Z',
-        notes: ''
-      }
-    ];
-    
-    setTimeout(() => {
-      setOrders(mockOrders);
-      setLoading(false);
-    }, 1000);
+    fetchOrders();
   }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await vendorAPI.getOrders({
+        search: searchTerm,
+        status: statusFilter !== 'all' ? statusFilter : undefined
+      });
+      
+      setOrders(response.data.orders || []);
+      
+      // Calculate stats
+      const orderList = response.data.orders || [];
+      setStats({
+        total: orderList.length,
+        pending: orderList.filter(o => o.status === 'PENDING').length,
+        processing: orderList.filter(o => o.status === 'PROCESSING').length,
+        shipped: orderList.filter(o => o.status === 'SHIPPED').length,
+        delivered: orderList.filter(o => o.status === 'DELIVERED').length,
+        totalRevenue: orderList.reduce((sum, o) => sum + (o.total || 0), 0)
+      });
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast.error('Failed to load orders');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, [searchTerm, statusFilter]);
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+                         order.user?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.user?.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.user?.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || order.status.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
 
-  const updateOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order => 
-      order.id === orderId 
-        ? { ...order, status: newStatus }
-        : order
-    ));
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      await orderAPI.updateStatus(orderId, newStatus);
+      setOrders(orders.map(order => 
+        order.id === orderId 
+          ? { ...order, status: newStatus }
+          : order
+      ));
+      toast.success(`Order status updated to ${newStatus.toLowerCase()}`);
+      fetchOrders(); // Refresh stats
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+    }
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending': return <Clock className="h-4 w-4" />;
-      case 'processing': return <Package className="h-4 w-4" />;
-      case 'shipped': return <Truck className="h-4 w-4" />;
-      case 'delivered': return <CheckCircle className="h-4 w-4" />;
+    switch (status?.toUpperCase()) {
+      case 'PENDING': return <Clock className="h-4 w-4" />;
+      case 'PROCESSING': return <Package className="h-4 w-4" />;
+      case 'SHIPPED': return <Truck className="h-4 w-4" />;
+      case 'DELIVERED': return <CheckCircle className="h-4 w-4" />;
       case 'cancelled': return <XCircle className="h-4 w-4" />;
       default: return <Clock className="h-4 w-4" />;
     }
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      case 'processing': return 'text-blue-600 bg-blue-100';
-      case 'shipped': return 'text-purple-600 bg-purple-100';
-      case 'delivered': return 'text-green-600 bg-green-100';
-      case 'cancelled': return 'text-red-600 bg-red-100';
+    switch (status?.toUpperCase()) {
+      case 'PENDING': return 'text-yellow-600 bg-yellow-100';
+      case 'PROCESSING': return 'text-blue-600 bg-blue-100';
+      case 'SHIPPED': return 'text-purple-600 bg-purple-100';
+      case 'DELIVERED': return 'text-green-600 bg-green-100';
+      case 'CANCELLED': return 'text-red-600 bg-red-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -176,7 +158,7 @@ const VendorOrders = () => {
             <ShoppingBag className="h-6 w-6 text-orange-500" />
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Total Orders</p>
-              <p className="text-lg font-bold text-gray-900">{orderStats.total}</p>
+              <p className="text-lg font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
         </div>
@@ -185,7 +167,7 @@ const VendorOrders = () => {
             <Clock className="h-6 w-6 text-yellow-500" />
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Pending</p>
-              <p className="text-lg font-bold text-gray-900">{orderStats.pending}</p>
+              <p className="text-lg font-bold text-gray-900">{stats.pending}</p>
             </div>
           </div>
         </div>
@@ -194,7 +176,7 @@ const VendorOrders = () => {
             <Package className="h-6 w-6 text-blue-500" />
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Processing</p>
-              <p className="text-lg font-bold text-gray-900">{orderStats.processing}</p>
+              <p className="text-lg font-bold text-gray-900">{stats.processing}</p>
             </div>
           </div>
         </div>
@@ -203,7 +185,7 @@ const VendorOrders = () => {
             <Truck className="h-6 w-6 text-purple-500" />
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Shipped</p>
-              <p className="text-lg font-bold text-gray-900">{orderStats.shipped}</p>
+              <p className="text-lg font-bold text-gray-900">{stats.shipped}</p>
             </div>
           </div>
         </div>
@@ -212,7 +194,7 @@ const VendorOrders = () => {
             <CheckCircle className="h-6 w-6 text-green-500" />
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Delivered</p>
-              <p className="text-lg font-bold text-gray-900">{orderStats.delivered}</p>
+              <p className="text-lg font-bold text-gray-900">{stats.delivered}</p>
             </div>
           </div>
         </div>
@@ -222,7 +204,11 @@ const VendorOrders = () => {
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Revenue</p>
               <p className="text-lg font-bold text-gray-900">
-                RWF {orderStats.revenue.toLocaleString()}
+                {new Intl.NumberFormat('en-RW', {
+                  style: 'currency',
+                  currency: 'RWF',
+                  maximumFractionDigits: 0
+                }).format(stats.totalRevenue)}
               </p>
             </div>
           </div>

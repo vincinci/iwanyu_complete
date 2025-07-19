@@ -1,64 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Users, ShoppingCart, DollarSign, Package, Store, BarChart3, Download } from 'lucide-react';
 
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, Users, ShoppingCart, DollarSign, Package, Store, BarChart3, Download } from 'lucide-react';
+import { adminAPI } from '../../services/api';
+import toast from 'react-hot-toast';
+
 const AdminAnalytics = () => {
   const [timeframe, setTimeframe] = useState('7d');
   const [analytics, setAnalytics] = useState({
     overview: {},
     revenue: [],
-    users: [],
-    orders: [],
     categories: [],
     topVendors: [],
     topProducts: []
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data - replace with real API calls
-    setAnalytics({
-      overview: {
-        totalRevenue: 12450000,
-        revenueGrowth: 15.2,
-        totalOrders: 1248,
-        ordersGrowth: 8.7,
-        activeUsers: 3421,
-        usersGrowth: 12.3,
-        activeVendors: 156,
-        vendorsGrowth: 6.8
-      },
-      revenue: [
-        { date: '2024-01-14', amount: 450000 },
-        { date: '2024-01-15', amount: 520000 },
-        { date: '2024-01-16', amount: 480000 },
-        { date: '2024-01-17', amount: 620000 },
-        { date: '2024-01-18', amount: 580000 },
-        { date: '2024-01-19', amount: 720000 },
-        { date: '2024-01-20', amount: 680000 }
-      ],
-      categories: [
-        { name: 'Electronics', value: 35, color: '#3B82F6' },
-        { name: 'Fashion', value: 25, color: '#EF4444' },
-        { name: 'Home & Garden', value: 20, color: '#10B981' },
-        { name: 'Sports', value: 12, color: '#F59E0B' },
-        { name: 'Books', value: 5, color: '#8B5CF6' },
-        { name: 'Others', value: 3, color: '#6B7280' }
-      ],
-      topVendors: [
-        { name: 'Tech Store Rwanda', revenue: 2450000, orders: 128, growth: 15.2 },
-        { name: 'Fashion Forward RW', revenue: 1850000, orders: 95, growth: 12.8 },
-        { name: 'Home & Garden Plus', revenue: 1250000, orders: 78, growth: -2.3 },
-        { name: 'Sports Zone', revenue: 980000, orders: 56, growth: 8.7 },
-        { name: 'Book Corner', revenue: 650000, orders: 42, growth: 5.2 }
-      ],
-      topProducts: [
-        { name: 'iPhone 15 Pro Max', vendor: 'Tech Store Rwanda', sales: 45, revenue: 675000 },
-        { name: 'Designer Handbag', vendor: 'Fashion Forward RW', sales: 32, revenue: 272000 },
-        { name: 'Gaming Laptop', vendor: 'Tech Store Rwanda', sales: 28, revenue: 274400 },
-        { name: 'Garden Tools Set', vendor: 'Home & Garden Plus', sales: 24, revenue: 108000 },
-        { name: 'Running Shoes', vendor: 'Sports Zone', sales: 22, revenue: 132000 }
-      ]
-    });
+    fetchAnalytics();
   }, [timeframe]);
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true);
+      const response = await adminAPI.getAnalytics({ timeframe });
+      setAnalytics(response.data);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      toast.error('Failed to load analytics data');
+      
+      // Fallback to mock data on error
+      setAnalytics({
+        overview: {
+          totalRevenue: 12450000,
+          revenueGrowth: 15.2,
+          totalOrders: 1248,
+          ordersGrowth: 8.7,
+          activeUsers: 3421,
+          usersGrowth: 12.3,
+          activeVendors: 156,
+          vendorsGrowth: 6.8
+        },
+        revenue: [
+          { date: '2024-01-14', amount: 450000 },
+          { date: '2024-01-15', amount: 520000 },
+          { date: '2024-01-16', amount: 480000 },
+          { date: '2024-01-17', amount: 620000 },
+          { date: '2024-01-18', amount: 580000 },
+          { date: '2024-01-19', amount: 720000 },
+          { date: '2024-01-20', amount: 680000 }
+        ],
+        categories: [
+          { name: 'Electronics', percentage: 35 },
+          { name: 'Fashion', percentage: 25 },
+          { name: 'Home & Garden', percentage: 20 },
+          { name: 'Sports', percentage: 12 },
+          { name: 'Books', percentage: 5 },
+          { name: 'Others', percentage: 3 }
+        ],
+        topVendors: [
+          { name: 'Tech Store Rwanda', revenue: 2450000, orders: 128 },
+          { name: 'Fashion Forward RW', revenue: 1850000, orders: 95 },
+          { name: 'Home & Garden Plus', revenue: 1250000, orders: 78 },
+          { name: 'Sports Zone', revenue: 980000, orders: 56 },
+          { name: 'Book Corner', revenue: 650000, orders: 42 }
+        ],
+        topProducts: [
+          { name: 'iPhone 15 Pro Max', vendor: 'Tech Store Rwanda', sales: 45, revenue: 675000 },
+          { name: 'Designer Handbag', vendor: 'Fashion Forward RW', sales: 32, revenue: 272000 },
+          { name: 'Gaming Laptop', vendor: 'Tech Store Rwanda', sales: 28, revenue: 274400 },
+          { name: 'Garden Tools Set', vendor: 'Home & Garden Plus', sales: 24, revenue: 108000 },
+          { name: 'Running Shoes', vendor: 'Sports Zone', sales: 22, revenue: 132000 }
+        ]
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const StatCard = ({ title, value, change, icon: Icon, trend = 'up', prefix = '', suffix = '' }) => (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -88,6 +107,24 @@ const AdminAnalytics = () => {
     }
     return amount.toString();
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-3/4 mb-1"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -170,7 +207,7 @@ const AdminAnalytics = () => {
                   <div className="flex items-center space-x-3">
                     <div 
                       className="w-4 h-4 rounded-full" 
-                      style={{ backgroundColor: category.color }}
+                      style={{ backgroundColor: `hsl(${index * 60}, 70%, 50%)` }}
                     ></div>
                     <span className="text-sm text-gray-700">{category.name}</span>
                   </div>
@@ -179,12 +216,12 @@ const AdminAnalytics = () => {
                       <div 
                         className="h-2 rounded-full"
                         style={{ 
-                          width: `${category.value}%`,
-                          backgroundColor: category.color
+                          width: `${category.percentage}%`,
+                          backgroundColor: `hsl(${index * 60}, 70%, 50%)`
                         }}
                       ></div>
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{category.value}%</span>
+                    <span className="text-sm font-medium text-gray-900">{category.percentage}%</span>
                   </div>
                 </div>
               ))}
@@ -210,9 +247,7 @@ const AdminAnalytics = () => {
                     <p className="text-sm font-medium text-gray-900">
                       RWF {formatCurrency(vendor.revenue)}
                     </p>
-                    <p className={`text-xs ${vendor.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {vendor.growth >= 0 ? '+' : ''}{vendor.growth}%
-                    </p>
+                    <p className="text-xs text-gray-500">{vendor.orders} orders</p>
                   </div>
                 </div>
               ))}

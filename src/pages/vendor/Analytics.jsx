@@ -27,55 +27,114 @@ import {
   Cell
 } from 'recharts';
 
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  ShoppingBag, 
+  Users, 
+  Package,
+  Calendar,
+  BarChart3,
+  PieChart,
+  ArrowUpRight,
+  ArrowDownRight
+} from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart as RechartsPieChart,
+  Cell
+} from 'recharts';
+import { vendorAPI } from '../../services/api';
+import toast from 'react-hot-toast';
+
 const VendorAnalytics = () => {
   const [timeRange, setTimeRange] = useState('7d');
   const [salesData, setSalesData] = useState([]);
   const [productData, setProductData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState({
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    pendingOrders: 0
+  });
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
-    const mockSalesData = [
-      { date: '2024-01-14', sales: 45000, orders: 12, customers: 8 },
-      { date: '2024-01-15', sales: 52000, orders: 15, customers: 11 },
-      { date: '2024-01-16', sales: 38000, orders: 10, customers: 7 },
-      { date: '2024-01-17', sales: 61000, orders: 18, customers: 14 },
-      { date: '2024-01-18', sales: 55000, orders: 16, customers: 12 },
-      { date: '2024-01-19', sales: 49000, orders: 14, customers: 9 },
-      { date: '2024-01-20', sales: 67000, orders: 21, customers: 16 }
-    ];
+    fetchAnalyticsData();
+  }, [timeRange]);
 
-    const mockProductData = [
-      { name: 'Premium Coffee Beans', sales: 156000, orders: 52 },
-      { name: 'Handwoven Basket', sales: 89000, orders: 34 },
-      { name: 'Traditional Fabric', sales: 125000, orders: 28 },
-      { name: 'Artisan Pottery', sales: 67000, orders: 23 },
-      { name: 'Organic Honey', sales: 45000, orders: 18 }
-    ];
+  const fetchAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch real analytics data from API
+      const response = await vendorAPI.getAnalytics();
+      const data = response.data;
+      
+      setAnalytics({
+        totalProducts: data.totalProducts || 0,
+        totalOrders: data.totalOrders || 0,
+        totalRevenue: data.totalRevenue || 0,
+        pendingOrders: data.pendingOrders || 0
+      });
 
-    const mockCategoryData = [
-      { name: 'Food & Beverages', value: 35, sales: 201000 },
-      { name: 'Fashion', value: 25, sales: 145000 },
-      { name: 'Home & Garden', value: 20, sales: 116000 },
-      { name: 'Crafts', value: 15, sales: 87000 },
-      { name: 'Others', value: 5, sales: 29000 }
-    ];
+      // For now, use mock data for charts since detailed analytics API would need more implementation
+      // In a real implementation, these would come from API endpoints with time-based data
+      const mockSalesData = [
+        { date: '2024-01-14', sales: 45000, orders: 12, customers: 8 },
+        { date: '2024-01-15', sales: 52000, orders: 15, customers: 11 },
+        { date: '2024-01-16', sales: 38000, orders: 10, customers: 7 },
+        { date: '2024-01-17', sales: 61000, orders: 18, customers: 14 },
+        { date: '2024-01-18', sales: 55000, orders: 16, customers: 12 },
+        { date: '2024-01-19', sales: 49000, orders: 14, customers: 9 },
+        { date: '2024-01-20', sales: 67000, orders: 21, customers: 16 }
+      ];
 
-    setTimeout(() => {
+      const mockProductData = [
+        { name: 'Premium Coffee Beans', sales: 156000, orders: 52 },
+        { name: 'Handwoven Basket', sales: 89000, orders: 34 },
+        { name: 'Traditional Fabric', sales: 125000, orders: 28 },
+        { name: 'Artisan Pottery', sales: 67000, orders: 23 },
+        { name: 'Organic Honey', sales: 45000, orders: 18 }
+      ];
+
+      const mockCategoryData = [
+        { name: 'Food & Beverages', value: 35, sales: 201000 },
+        { name: 'Fashion', value: 25, sales: 145000 },
+        { name: 'Home & Garden', value: 20, sales: 116000 },
+        { name: 'Crafts', value: 15, sales: 87000 },
+        { name: 'Others', value: 5, sales: 29000 }
+      ];
+
       setSalesData(mockSalesData);
       setProductData(mockProductData);
       setCategoryData(mockCategoryData);
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      toast.error('Failed to load analytics data');
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, [timeRange]);
+    }
+  };
 
-  const totalSales = salesData.reduce((sum, day) => sum + day.sales, 0);
-  const totalOrders = salesData.reduce((sum, day) => sum + day.orders, 0);
+  const totalSales = analytics.totalRevenue;
+  const totalOrders = analytics.totalOrders;
   const totalCustomers = salesData.reduce((sum, day) => sum + day.customers, 0);
   const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-  // Calculate growth rates (mock calculation)
+  // Calculate growth rates (mock calculation - would need historical data from API)
   const salesGrowth = 12.5;
   const ordersGrowth = 8.3;
   const customersGrowth = 15.7;

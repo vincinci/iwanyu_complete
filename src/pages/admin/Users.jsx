@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, MoreVertical, Ban, UserCheck, Mail, Phone, Calendar, Eye } from 'lucide-react';
+import { adminAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
@@ -8,63 +10,58 @@ const AdminUsers = () => {
   const [filterRole, setFilterRole] = useState('all');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    // Mock data - replace with real API calls
-    setUsers([
-      {
-        id: 1,
-        name: 'John Doe',
-        email: 'john@example.com',
-        phone: '+250788123456',
-        role: 'customer',
-        status: 'active',
-        joinDate: '2024-01-15',
-        lastLogin: '2024-01-20',
-        orders: 5,
-        totalSpent: 125000
-      },
-      {
-        id: 2,
-        name: 'Jane Smith',
-        email: 'jane@techstore.rw',
-        phone: '+250788654321',
-        role: 'vendor',
-        status: 'active',
-        joinDate: '2024-01-10',
-        lastLogin: '2024-01-19',
-        orders: 0,
-        totalSpent: 0,
-        businessName: 'Tech Store Rwanda'
-      },
-      {
-        id: 3,
-        name: 'Bob Wilson',
-        email: 'bob@example.com',
-        phone: '+250788987654',
-        role: 'customer',
-        status: 'suspended',
-        joinDate: '2024-01-05',
-        lastLogin: '2024-01-18',
-        orders: 2,
-        totalSpent: 75000
-      },
-      {
-        id: 4,
-        name: 'Alice Brown',
-        email: 'alice@fashion.rw',
-        phone: '+250788456789',
-        role: 'vendor',
-        status: 'pending',
-        joinDate: '2024-01-18',
-        lastLogin: '2024-01-18',
-        orders: 0,
-        totalSpent: 0,
-        businessName: 'Fashion Forward RW'
-      }
-    ]);
-  }, []);
+    fetchUsers();
+  }, [currentPage, searchTerm, filterRole]);
 
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        page: currentPage,
+        limit: 10,
+        search: searchTerm,
+        role: filterRole !== 'all' ? filterRole.toUpperCase() : undefined
+      };
+
+      const response = await adminAPI.getUsers(params);
+      const transformedUsers = response.data.users.map(user => ({
+        id: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        phone: user.phone || 'N/A',
+        role: user.role.toLowerCase(),
+        status: user.isActive ? 'active' : 'suspended',
+        joinDate: new Date(user.createdAt).toLocaleDateString(),
+        lastLogin: 'N/A', // This would need to be tracked
+        orders: 0, // This would need to be calculated
+        totalSpent: 0, // This would need to be calculated
+        avatar: user.avatar
+      }));
+
+      setUsers(transformedUsers);
+      setTotalPages(response.data.totalPages);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load users');
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId) => {
+    try {
+      await adminAPI.updateUser(userId, {});
+      toast.success('User status updated successfully');
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast.error('Failed to update user status');
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -74,22 +71,31 @@ const AdminUsers = () => {
   });
 
   const handleUserAction = (userId, action) => {
-    setUsers(users.map(user => {
-      if (user.id === userId) {
-        switch (action) {
-          case 'activate':
-            return { ...user, status: 'active' };
-          case 'suspend':
-            return { ...user, status: 'suspended' };
-          case 'approve':
-            return { ...user, status: 'active' };
-          default:
-            return user;
-        }
-      }
-      return user;
-    }));
+    if (action === 'suspend' || action === 'activate') {
+      handleToggleUserStatus(userId);
+    } else if (action === 'view') {
+      const user = users.find(u => u.id === userId);
+      setSelectedUser(user);
+      setShowUserModal(true);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+            <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-16 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const UserModal = ({ user, onClose }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

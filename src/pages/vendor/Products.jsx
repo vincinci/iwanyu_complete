@@ -14,6 +14,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { vendorAPI, productAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const VendorProducts = () => {
   const navigate = useNavigate();
@@ -21,73 +23,95 @@ const VendorProducts = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('all');
-
-  // Mock data - replace with actual API calls
-  useEffect(() => {
-    const mockProducts = [
-      {
-        id: '1',
-        name: 'Premium Coffee Beans',
-        sku: 'COFFEE-001',
-        price: 15000,
-        stock: 45,
-        status: 'active',
-        image: '/api/placeholder/100/100',
-        category: 'Food & Beverages',
-        sales: 123,
-        createdAt: '2024-01-15'
-      },
-      {
-        id: '2',
-        name: 'Handwoven Basket',
-        sku: 'BASKET-002',
-        price: 8500,
-        stock: 12,
-        status: 'active',
-        image: '/api/placeholder/100/100',
-        category: 'Home & Garden',
-        sales: 67,
-        createdAt: '2024-01-10'
-      },
-      {
-        id: '3',
-        name: 'Traditional Fabric',
-        sku: 'FABRIC-003',
-        price: 25000,
-        stock: 0,
-        status: 'inactive',
-        image: '/api/placeholder/100/100',
-        category: 'Fashion',
-        sales: 89,
-        createdAt: '2024-01-05'
-      }
-    ];
-    
-    setTimeout(() => {
-      setProducts(mockProducts);
-      setLoading(false);
-    }, 1000);
-  }, []);
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filter === 'all' || product.status === filter;
-    return matchesSearch && matchesFilter;
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    outOfStock: 0,
+    revenue: 0
   });
 
-  const handleDeleteProduct = (productId) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      setProducts(products.filter(p => p.id !== productId));
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await vendorAPI.getProducts({
+        search: searchTerm,
+        status: filter !== 'all' ? filter : undefined
+      });
+      
+      setProducts(response.data.products || []);
+      
+      // Calculate stats
+      const totalProducts = response.data.products?.length || 0;
+      const activeProducts = response.data.products?.filter(p => p.isActive)?.length || 0;
+      const outOfStock = response.data.products?.filter(p => p.stock === 0)?.length || 0;
+      const totalRevenue = response.data.products?.reduce((sum, p) => sum + (p.sales || 0) * p.price, 0) || 0;
+      
+      setStats({
+        total: totalProducts,
+        active: activeProducts,
+        outOfStock: outOfStock,
+        revenue: totalRevenue
+      });
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      toast.error('Failed to load products');
+      setProducts([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleProductStatus = (productId) => {
-    setProducts(products.map(p => 
-      p.id === productId 
-        ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' }
-        : p
-    ));
+  useEffect(() => {
+    fetchProducts();
+  }, [searchTerm, filter]);
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filter === 'all' || 
+                         (filter === 'active' && product.isActive) ||
+                         (filter === 'inactive' && !product.isActive) ||
+                         (filter === 'outOfStock' && product.stock === 0);
+    return matchesSearch && matchesFilter;
+  });
+
+  const handleDeleteProduct = async (productId) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      try {
+        await productAPI.delete(productId);
+        setProducts(products.filter(p => p.id !== productId));
+        toast.success('Product deleted successfully');
+        fetchProducts(); // Refresh stats
+      } catch (error) {
+        console.error('Error deleting product:', error);
+        toast.error('Failed to delete product');
+      }
+    }
+  };
+
+  const toggleProductStatus = async (productId) => {
+    try {
+      const product = products.find(p => p.id === productId);
+      const newStatus = !product.isActive;
+      
+      await productAPI.update(productId, { isActive: newStatus });
+      
+      setProducts(products.map(p => 
+        p.id === productId 
+          ? { ...p, isActive: newStatus }
+          : p
+      ));
+      
+      toast.success(`Product ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      fetchProducts(); // Refresh stats
+    } catch (error) {
+      console.error('Error updating product status:', error);
+      toast.error('Failed to update product status');
+    }
   };
 
   if (loading) {
@@ -124,7 +148,7 @@ const VendorProducts = () => {
             <Package className="h-8 w-8 text-orange-500" />
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-600">Total Products</p>
-              <p className="text-xl font-bold text-gray-900">{products.length}</p>
+              <p className="text-xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
         </div>
@@ -133,9 +157,7 @@ const VendorProducts = () => {
             <TrendingUp className="h-8 w-8 text-green-500" />
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-600">Active Products</p>
-              <p className="text-xl font-bold text-gray-900">
-                {products.filter(p => p.status === 'active').length}
-              </p>
+              <p className="text-xl font-bold text-gray-900">{stats.active}</p>
             </div>
           </div>
         </div>
@@ -143,9 +165,13 @@ const VendorProducts = () => {
           <div className="flex items-center">
             <DollarSign className="h-8 w-8 text-blue-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Total Sales</p>
+              <p className="text-sm font-medium text-gray-600">Total Revenue</p>
               <p className="text-xl font-bold text-gray-900">
-                {products.reduce((sum, p) => sum + p.sales, 0)}
+                {new Intl.NumberFormat('en-RW', {
+                  style: 'currency',
+                  currency: 'RWF',
+                  maximumFractionDigits: 0
+                }).format(stats.revenue)}
               </p>
             </div>
           </div>
@@ -154,10 +180,8 @@ const VendorProducts = () => {
           <div className="flex items-center">
             <AlertCircle className="h-8 w-8 text-red-500" />
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Low Stock</p>
-              <p className="text-xl font-bold text-gray-900">
-                {products.filter(p => p.stock < 10).length}
-              </p>
+              <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+              <p className="text-xl font-bold text-gray-900">{stats.outOfStock}</p>
             </div>
           </div>
         </div>
@@ -186,6 +210,7 @@ const VendorProducts = () => {
             <option value="all">All Products</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+            <option value="outOfStock">Out of Stock</option>
           </select>
         </div>
       </div>
@@ -227,7 +252,7 @@ const VendorProducts = () => {
                       <div className="flex-shrink-0 h-10 w-10">
                         <img
                           className="h-10 w-10 rounded-lg object-cover"
-                          src={product.image}
+                          src={product.images?.[0] || '/api/placeholder/100/100'}
                           alt={product.name}
                         />
                       </div>
@@ -236,16 +261,19 @@ const VendorProducts = () => {
                           {product.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {product.category}
+                          {product.category?.name || 'Uncategorized'}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.sku}
+                    {product.sku || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    RWF {product.price.toLocaleString()}
+                    {new Intl.NumberFormat('en-RW', {
+                      style: 'currency',
+                      currency: 'RWF'
+                    }).format(product.price)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -260,39 +288,43 @@ const VendorProducts = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      product.status === 'active'
+                      product.isActive
                         ? 'bg-green-100 text-green-800'
                         : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {product.status}
+                      {product.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.sales}
+                    {product.salesCount || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => navigate(`/vendor/products/${product.id}`)}
+                        onClick={() => navigate(`/products/${product.id}`)}
                         className="text-gray-400 hover:text-gray-600"
+                        title="View Product"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => navigate(`/vendor/products/${product.id}/edit`)}
                         className="text-gray-400 hover:text-orange-600"
+                        title="Edit Product"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => toggleProductStatus(product.id)}
                         className="text-gray-400 hover:text-blue-600"
+                        title={product.isActive ? 'Deactivate' : 'Activate'}
                       >
                         <Package className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(product.id)}
                         className="text-gray-400 hover:text-red-600"
+                        title="Delete Product"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

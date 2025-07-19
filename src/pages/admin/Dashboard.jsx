@@ -15,13 +15,18 @@ import {
   Bell,
   UserCheck,
   ShoppingBag,
-  BarChart3
+  BarChart3,
+  Tag
 } from 'lucide-react';
+import { adminAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 // Import admin pages
 import AdminUsers from './Users';
 import AdminVendors from './Vendors';
 import AdminProducts from './Products';
+import AdminOrders from './Orders';
+import AdminCategories from './Categories';
 // import AdminAnalytics from './AnalyticsSimple';
 
 const AdminDashboard = () => {
@@ -38,8 +43,9 @@ const AdminDashboard = () => {
             <Route path="users" element={<AdminUsers />} />
             <Route path="vendors" element={<AdminVendors />} />
             <Route path="products" element={<AdminProducts />} />
-            <Route path="analytics" element={<SimpleAnalytics />} />
             <Route path="orders" element={<AdminOrders />} />
+            <Route path="categories" element={<AdminCategories />} />
+            <Route path="analytics" element={<SimpleAnalytics />} />
             <Route path="settings" element={<AdminSettings />} />
           </Routes>
         </div>
@@ -55,6 +61,7 @@ const AdminSidebar = () => {
     { icon: Store, label: 'Vendors', path: '/admin/vendors' },
     { icon: Package, label: 'Products', path: '/admin/products' },
     { icon: ShoppingCart, label: 'Orders', path: '/admin/orders' },
+    { icon: Tag, label: 'Categories', path: '/admin/categories' },
     { icon: TrendingUp, label: 'Analytics', path: '/admin/analytics' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
   ];
@@ -101,34 +108,56 @@ const AdminOverview = () => {
 
   const [recentActivities, setRecentActivities] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data - replace with real API calls
-    setStats({
-      totalUsers: 1250,
-      totalVendors: 180,
-      totalProducts: 3420,
-      totalOrders: 892,
-      pendingVendors: 12,
-      flaggedProducts: 5,
-      totalRevenue: 2450000,
-      monthlyGrowth: 15.2
-    });
-
-    setRecentActivities([
-      { id: 1, type: 'user', message: 'New user registration: John Doe', time: '2 minutes ago' },
-      { id: 2, type: 'vendor', message: 'Vendor application: Tech Store Rwanda', time: '15 minutes ago' },
-      { id: 3, type: 'order', message: 'High-value order: RWF 250,000', time: '1 hour ago' },
-      { id: 4, type: 'product', message: 'Product flagged for review', time: '2 hours ago' },
-      { id: 5, type: 'payment', message: 'Payment issue resolved', time: '3 hours ago' }
-    ]);
-
-    setPendingApprovals([
-      { id: 1, type: 'vendor', name: 'Rwanda Electronics Ltd', submitted: '2024-01-15' },
-      { id: 2, type: 'product', name: 'iPhone 15 Pro Max', vendor: 'Tech Hub', submitted: '2024-01-14' },
-      { id: 3, type: 'vendor', name: 'Fashion Forward RW', submitted: '2024-01-13' }
-    ]);
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const response = await adminAPI.getDashboard();
+      const data = response.data;
+      
+      setStats({
+        totalUsers: data.totalUsers || 0,
+        totalVendors: data.totalVendors || 0,
+        totalProducts: data.totalProducts || 0,
+        totalOrders: data.totalOrders || 0,
+        pendingVendors: data.pendingVendors || 0,
+        flaggedProducts: 0, // This would need to be added to the API
+        totalRevenue: data.totalRevenue || 0,
+        monthlyGrowth: 15.2 // This would need to be calculated on the backend
+      });
+
+      // Transform recent orders into activities
+      const activities = (data.recentOrders || []).slice(0, 5).map((order, index) => ({
+        id: order.id,
+        type: 'order',
+        message: `New order from ${order.user.firstName} ${order.user.lastName}: RWF ${order.total.toLocaleString()}`,
+        time: new Date(order.createdAt).toLocaleDateString()
+      }));
+
+      setRecentActivities(activities);
+
+      // For pending approvals, we'll fetch vendor applications
+      const vendorsResponse = await adminAPI.getVendors({ status: 'PENDING' });
+      const pendingVendors = (vendorsResponse.data.vendors || []).slice(0, 3).map(vendor => ({
+        id: vendor.id,
+        type: 'vendor',
+        name: vendor.businessName,
+        submitted: new Date(vendor.createdAt).toLocaleDateString()
+      }));
+
+      setPendingApprovals(pendingVendors);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const StatCard = ({ title, value, icon: Icon, change, trend = 'up' }) => (
     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
@@ -165,6 +194,24 @@ const AdminOverview = () => {
       </div>
     </Link>
   );
+
+  if (loading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-3/4 mb-1"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">

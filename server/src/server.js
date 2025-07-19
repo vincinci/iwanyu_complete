@@ -9,6 +9,10 @@ const { Server } = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+
+// Trust proxy for production deployment (Render, Vercel, etc.)
+app.set('trust proxy', true);
+
 const server = createServer(app);
 
 // Configure allowed origins for development and production
@@ -40,11 +44,18 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting with proper proxy trust configuration
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  trustProxy: true, // Trust proxy headers for accurate IP detection
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health' || req.path === '/api/health';
+  }
 });
 app.use('/api/', limiter);
 
@@ -71,13 +82,30 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    service: 'Iwanyu API',
-    version: '1.0.0'
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Check database connection
+    const prisma = require('./utils/prisma');
+    await prisma.$queryRaw`SELECT 1`;
+    
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      service: 'Iwanyu API',
+      version: '1.0.0',
+      database: 'connected'
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(503).json({ 
+      status: 'ERROR', 
+      timestamp: new Date().toISOString(),
+      service: 'Iwanyu API',
+      version: '1.0.0',
+      database: 'disconnected',
+      error: error.message
+    });
+  }
 });
 
 // Socket.IO for real-time chat

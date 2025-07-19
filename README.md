@@ -1,52 +1,40 @@
-# Iwanyu - Multi-Vendor E-commerce Platform for Rwanda
+# 🛒 Iwanyu E-commerce Platform
 
-A modern, full-stack e-commerce platform designed specifically for the Rwandan market, enabling vendors to sell their products and customers to purchase with secure RWF payments.
+A modern, full-stack multi-vendor e-commerce platform built for the Rwandan market.
 
-## 🚀 Features
+## 🏗️ Project Structure
 
-### For Customers
-- Browse products by categories
-- Product search and filtering
-- Shopping cart and wishlist
-- Secure checkout with Flutterwave (RWF)
-- Order tracking and history
-- Product reviews and ratings
-- Real-time chat with vendors
-- Mobile-responsive design
+```
+iwanyu/
+├── client/          # React Frontend (Vite + Tailwind CSS)
+├── server/          # Node.js Backend (Express + Prisma)
+├── package.json     # Monorepo coordinator
+└── vercel.json      # Deployment configuration
+```
 
-### For Vendors
-- Vendor registration with KYC verification
-- Product management with multiple images
-- Product variants (size, color, etc.)
-- Order management and inventory tracking
-- Earnings dashboard
-- Real-time chat with customers
+## 🚀 Quick Start
 
-### For Admins
-- Vendor approval system
-- Platform content management
-- User and order analytics
-- Banner and category management
-- System settings
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- PostgreSQL database
 
-## 🛠️ Tech Stack
+### Installation
+```bash
+# Install all dependencies
+npm run install:all
 
-### Frontend
-- **React.js** with Vite
-- **Tailwind CSS** (mobile-first)
-- **React Router** for navigation
-- **Framer Motion** for animations
-- **Socket.io Client** for real-time features
-- **React Hook Form** + Zod validation
-- **Axios** for API calls
+# Start development servers
+npm run dev
+```
 
-### Backend
-- **Node.js** + **Express.js**
-- **Prisma ORM** with PostgreSQL
-- **JWT** authentication
-- **Socket.io** for real-time chat
-- **Flutterwave** for payments
-- **Multer** for file uploads
+### Development Commands
+```bash
+npm run dev              # Start both client and server
+npm run client:dev       # Frontend only (React + Vite)
+npm run server:dev       # Backend only (Express + Prisma)
+npm run build           # Build for production
+```
 
 ### Database & Storage
 - **PostgreSQL** on Neon.tech

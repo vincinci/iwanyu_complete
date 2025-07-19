@@ -41,18 +41,32 @@ const Products = () => {
     }
   };
 
-  // Mock products data - replace with actual API call
-  const products = Array.from({ length: 12 }, (_, i) => ({
-    id: i + 1,
-    name: `Premium Product ${i + 1}`,
-    price: Math.floor(Math.random() * 50000) + 10000,
-    originalPrice: Math.floor(Math.random() * 70000) + 60000,
-    rating: (Math.random() * 2 + 3).toFixed(1),
-    reviews: Math.floor(Math.random() * 100) + 10,
-    image: `https://picsum.photos/400/400?random=${i + 1}`,
-    vendor: `Vendor ${i + 1}`,
-    category: ['Electronics', 'Fashion', 'Home', 'Beauty'][Math.floor(Math.random() * 4)]
-  }));
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        const data = await response.json();
+        setProducts(data.products || []);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setError('Failed to load products. Please try again later.');
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   return (
     <div className="min-h-screen pt-20">

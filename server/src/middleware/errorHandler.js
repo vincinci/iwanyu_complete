@@ -2,8 +2,11 @@ const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log error
-  console.error(err);
+  // Log error with more context
+  console.error(`Error ${err.statusCode || 500}: ${err.message}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Stack trace:', err.stack);
+  }
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
@@ -27,6 +30,19 @@ const errorHandler = (err, req, res, next) => {
   if (err.code === 'P2002') {
     const message = 'Duplicate field value entered';
     error = { message, statusCode: 400 };
+  }
+
+  // Prisma connection errors
+  if (err.code === 'P1001' || err.code === 'P1002' || err.code === 'P1008') {
+    const message = 'Database connection failed';
+    error = { message, statusCode: 503 };
+  }
+
+  // Rate limit errors
+  if (err.code === 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR') {
+    console.warn('Rate limiting warning: X-Forwarded-For header detected but proxy trust not configured');
+    // Don't crash the app, just log the warning
+    return next();
   }
 
   if (err.code === 'P2014') {

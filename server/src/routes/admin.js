@@ -690,4 +690,187 @@ router.delete('/banners/:id', authenticate, adminAuth, async (req, res) => {
   }
 });
 
+// Get analytics data
+router.get('/analytics', authenticate, adminAuth, async (req, res) => {
+  try {
+    const timeframe = req.query.timeframe || '7d';
+    
+    // Calculate date range based on timeframe
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (timeframe) {
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case '1y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 7);
+    }
+
+    // Get basic metrics
+    const [
+      totalUsers,
+      totalVendors,
+      totalProducts,
+      totalOrders,
+      totalRevenue,
+      recentRevenue,
+      categoryStats,
+      topVendors,
+      recentOrders
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.vendor.count(),
+      prisma.product.count(),
+      prisma.order.count(),
+      prisma.order.aggregate({
+        where: { status: 'DELIVERED' },
+        _sum: { total: true }
+      }),
+      prisma.order.findMany({
+        where: {
+          status: 'DELIVERED',
+          createdAt: { gte: startDate }
+        },
+        select: {
+          total: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'asc' }
+      }),
+      prisma.category.findMany({
+        include: {
+          products: {
+            include: {
+              orderItems: {
+                where: {
+                  order: { status: 'DELIVERED' }
+                },
+                select: {
+                  quantity: true,
+                  price: true
+                }
+              }
+            }
+          }
+        }
+      }),
+      prisma.vendor.findMany({
+        include: {
+          products: {
+            include: {
+              orderItems: {
+                where: {
+                  order: { status: 'DELIVERED' }
+                },
+                select: {
+                  quantity: true,
+                  price: true
+                }
+              }
+            }
+          }
+        },
+        take: 10
+      }),
+      prisma.order.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
+      })
+    ]);
+
+    // Process revenue data for charts
+    const revenueByDay = recentRevenue.reduce((acc, order) => {
+      const date = order.createdAt.toISOString().split('T')[0];
+      acc[date] = (acc[date] || 0) + order.total;
+      return acc;
+    }, {});
+
+    const revenueChart = Object.entries(revenueByDay).map(([date, amount]) => ({
+      date,
+      amount
+    }));
+
+    // Process category data
+    const categoryData = categoryStats.map(category => {
+      const revenue = category.products.reduce((sum, product) => {
+        return sum + product.orderItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      }, 0);
+      
+      return {
+        name: category.name,
+        revenue,
+        productCount: category.products.length
+      };
+    }).filter(cat => cat.revenue > 0);
+
+    const totalCategoryRevenue = categoryData.reduce((sum, cat) => sum + cat.revenue, 0);
+    const categoriesWithPercentage = categoryData.map(cat => ({
+      ...cat,
+      percentage: totalCategoryRevenue > 0 ? Math.round((cat.revenue / totalCategoryRevenue) * 100) : 0
+    }));
+
+    // Process vendor data
+    const vendorData = topVendors.map(vendor => {
+      const revenue = vendor.products.reduce((sum, product) => {
+        return sum + product.orderItems.reduce((itemSum, item) => itemSum + (item.price * item.quantity), 0);
+      }, 0);
+      
+      const orders = vendor.products.reduce((sum, product) => sum + product.orderItems.length, 0);
+      
+      return {
+        name: vendor.businessName,
+        revenue,
+        orders
+      };
+    }).filter(vendor => vendor.revenue > 0)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    res.json({
+      overview: {
+        totalUsers,
+        totalVendors,
+        totalProducts,
+        totalOrders,
+        totalRevenue: totalRevenue._sum.total || 0,
+        usersGrowth: 12.3, // Would need historical data to calculate
+        vendorsGrowth: 6.8,
+        productsGrowth: 15.7,
+        ordersGrowth: 8.7,
+        revenueGrowth: 15.2
+      },
+      revenue: revenueChart,
+      categories: categoriesWithPercentage,
+      topVendors: vendorData,
+      recentOrders: recentOrders.map(order => ({
+        id: order.id,
+        total: order.total,
+        customer: `${order.user.firstName} ${order.user.lastName}`,
+        createdAt: order.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

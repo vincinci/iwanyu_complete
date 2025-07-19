@@ -1,35 +1,48 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Minus, Plus, Trash2, ArrowRight, Gift } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { cartAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 const Cart = () => {
+  const navigate = useNavigate();
   const { cartItems, getCartTotal, updateQuantity, removeFromCart } = useCart();
-  
-  // Mock cart items for demo
-  const mockCartItems = [
-    {
-      id: 1,
-      name: "Premium Wireless Headphones",
-      price: 45000,
-      quantity: 2,
-      image: "https://picsum.photos/200/200?random=1",
-      vendor: "AudioTech RW"
-    },
-    {
-      id: 2,
-      name: "Organic Coffee Beans",
-      price: 12000,
-      quantity: 1,
-      image: "https://picsum.photos/200/200?random=2",
-      vendor: "Rwanda Coffee Co."
-    }
-  ];
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState({});
 
-  const items = cartItems.length > 0 ? cartItems : mockCartItems;
-  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = 0; // Free shipping
+  const handleUpdateQuantity = async (itemId, newQuantity) => {
+    if (newQuantity < 1) return;
+    
+    setUpdating(prev => ({ ...prev, [itemId]: true }));
+    try {
+      await cartAPI.update(itemId, newQuantity);
+      updateQuantity(itemId, newQuantity);
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Failed to update quantity');
+    } finally {
+      setUpdating(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const handleRemoveItem = async (itemId) => {
+    setUpdating(prev => ({ ...prev, [itemId]: true }));
+    try {
+      await cartAPI.remove(itemId);
+      removeFromCart(itemId);
+      toast.success('Item removed from cart');
+    } catch (error) {
+      console.error('Error removing item:', error);
+      toast.error('Failed to remove item');
+    } finally {
+      setUpdating(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const subtotal = getCartTotal();
+  const shipping = subtotal > 50000 ? 0 : 2000; // Free shipping over 50,000 RWF
   const total = subtotal + shipping;
   
   const containerVariants = {
@@ -79,7 +92,7 @@ const Cart = () => {
 
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {items.length === 0 ? (
+          {cartItems.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -115,23 +128,23 @@ const Cart = () => {
               <div className="lg:col-span-2">
                 <motion.div variants={itemVariants} className="bg-white border border-gray-200 rounded-xl p-6">
                   <h2 className="text-2xl font-semibold text-gray-900 mb-8">
-                    Cart Items ({items.length})
+                    Cart Items ({cartItems.length})
                   </h2>
                   
                   <div className="space-y-6">
-                    {items.map((item, index) => (
+                    {cartItems.map((item, index) => (
                       <motion.div
                         key={item.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1, duration: 0.5 }}
-                        className="flex gap-6 p-6 glass-light rounded-2xl hover:glass-medium transition-all duration-300"
+                        className="flex gap-6 p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all duration-300"
                       >
                         {/* Product Image */}
-                        <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0">
                           <img
-                            src={item.image}
-                            alt={item.name}
+                            src={item.product?.images?.[0] || item.image || '/api/placeholder/100/100'}
+                            alt={item.product?.name || item.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -141,15 +154,16 @@ const Cart = () => {
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <h3 className="text-lg font-medium text-gray-900 truncate">
-                                {item.name}
+                                {item.product?.name || item.name}
                               </h3>
-                              <p className="text-sm text-gray-500">{item.vendor}</p>
+                              <p className="text-sm text-gray-500">{item.product?.vendor?.businessName || item.vendor}</p>
                             </div>
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
-                              onClick={() => removeFromCart && removeFromCart(item.id)}
-                              className="p-2 glass-light rounded-xl hover:bg-red-50 text-red-500"
+                              onClick={() => handleRemoveItem(item.id)}
+                              disabled={updating[item.id]}
+                              className="p-2 bg-gray-100 rounded-lg hover:bg-red-50 text-red-500 disabled:opacity-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </motion.button>
@@ -157,12 +171,13 @@ const Cart = () => {
 
                           <div className="flex items-center justify-between">
                             {/* Quantity Controls */}
-                            <div className="flex items-center glass-light rounded-2xl p-1">
+                            <div className="flex items-center bg-gray-100 rounded-lg p-1">
                               <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => updateQuantity && updateQuantity(item.id, item.quantity - 1)}
-                                className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/50"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                disabled={item.quantity <= 1 || updating[item.id]}
+                                className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-white disabled:opacity-50"
                               >
                                 <Minus className="h-4 w-4" />
                               </motion.button>
@@ -172,8 +187,9 @@ const Cart = () => {
                               <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => updateQuantity && updateQuantity(item.id, item.quantity + 1)}
-                                className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-white/50"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                disabled={updating[item.id]}
+                                className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-white disabled:opacity-50"
                               >
                                 <Plus className="h-4 w-4" />
                               </motion.button>
@@ -185,13 +201,13 @@ const Cart = () => {
                                 {new Intl.NumberFormat('en-RW', {
                                   style: 'currency',
                                   currency: 'RWF'
-                                }).format(item.price * item.quantity)}
+                                }).format((item.product?.price || item.price) * item.quantity)}
                               </p>
                               <p className="text-sm text-gray-500">
                                 {new Intl.NumberFormat('en-RW', {
                                   style: 'currency',
                                   currency: 'RWF'
-                                }).format(item.price)} each
+                                }).format(item.product?.price || item.price)} each
                               </p>
                             </div>
                           </div>
@@ -204,7 +220,7 @@ const Cart = () => {
 
               {/* Order Summary */}
               <motion.div variants={itemVariants} className="space-y-6">
-                <div className="card">
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h3 className="text-xl font-medium text-gray-900 mb-6">Order Summary</h3>
                   
                   <div className="space-y-4 mb-6">
@@ -219,12 +235,29 @@ const Cart = () => {
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Shipping</span>
-                      <span className="text-green-600 font-medium">Free</span>
+                      {shipping === 0 ? (
+                        <span className="text-green-600 font-medium">Free</span>
+                      ) : (
+                        <span>
+                          {new Intl.NumberFormat('en-RW', {
+                            style: 'currency',
+                            currency: 'RWF'
+                          }).format(shipping)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Tax</span>
                       <span>Included</span>
                     </div>
+                    {subtotal > 0 && subtotal < 50000 && (
+                      <div className="text-sm text-orange-600 bg-orange-50 p-3 rounded-lg">
+                        Add {new Intl.NumberFormat('en-RW', {
+                          style: 'currency',
+                          currency: 'RWF'
+                        }).format(50000 - subtotal)} more for free shipping
+                      </div>
+                    )}
                     <hr className="border-gray-200" />
                     <div className="flex justify-between text-lg font-semibold text-gray-900">
                       <span>Total</span>
@@ -237,24 +270,23 @@ const Cart = () => {
                     </div>
                   </div>
 
-                  <Link to="/checkout">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full btn btn-primary text-lg py-4 mb-4"
-                    >
-                      <span className="flex items-center justify-center">
-                        Proceed to Checkout
-                        <ArrowRight className="ml-2 h-5 w-5" />
-                      </span>
-                    </motion.button>
-                  </Link>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/checkout')}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium text-lg py-4 rounded-lg transition-colors mb-4"
+                  >
+                    <span className="flex items-center justify-center">
+                      Proceed to Checkout
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </span>
+                  </motion.button>
 
                   <Link to="/products">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full btn btn-secondary text-center"
+                      className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-3 rounded-lg transition-colors text-center block"
                     >
                       Continue Shopping
                     </motion.button>
@@ -262,21 +294,21 @@ const Cart = () => {
                 </div>
 
                 {/* Promo Code */}
-                <div className="card">
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h4 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                    <Gift className="h-5 w-5 mr-2 text-white" />
+                    <Gift className="h-5 w-5 mr-2 text-orange-500" />
                     Promo Code
                   </h4>
                   <div className="flex gap-3">
                     <input
                       type="text"
                       placeholder="Enter code"
-                      className="flex-1 input"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                     />
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="btn btn-secondary px-6"
+                      className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium px-6 py-3 rounded-lg transition-colors"
                     >
                       Apply
                     </motion.button>
